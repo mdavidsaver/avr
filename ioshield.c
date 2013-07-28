@@ -95,10 +95,8 @@ void user_init(void)
     PORTD &= ~_BV(PD3);
 
     // Setup output pins
-    DDRB = _BV(DDB2)|_BV(DDB3);
+    DDRB |= _BV(DDB2)|_BV(DDB3);
     DDRD |= _BV(DDD5)|_BV(DDD6);
-
-    ICR1 = 0xffff;
 
     reg[6] = reg[8] = 10<<8; // outputs 3,4 only allow divider /1024
 }
@@ -194,9 +192,9 @@ void mbus_write_holding(uint16_t faddr, uint16_t value)
             div = divtbl[div];
 
             if(mode==1) { // freq (CTC mode)
-                TCCR2A = WGM21|COM2A0;
+                TCCR2A = _BV(WGM21)|_BV(COM2A0);
             } else { // PWM (fast)
-                TCCR2A = WGM21|WGM20|COM2A0;
+                TCCR2A = _BV(WGM21)|_BV(WGM20)|_BV(COM2A0);
             }
             TCCR2B = div;
         }
@@ -213,6 +211,7 @@ void mbus_write_holding(uint16_t faddr, uint16_t value)
         // disable counter in preparation to change mode
         TCCR1A = 0;
         TCCR1B = 0;
+        OCR1A = OCR1B = 0;
 
         if(mode!=0) {
             if(div>=sizeof(divtbl))
@@ -220,18 +219,25 @@ void mbus_write_holding(uint16_t faddr, uint16_t value)
             div = divtbl[div];
 
             if(mode==1) { // freq (CTC mode)
-                div |= WGM12;
+                OCR1A = reg[5];
+                TCCR1B = _BV(WGM12);
             } else { // PWM (phase + freq correct)
-                div |= WGM13;
+                TCCR1B = _BV(WGM13);
+                ICR1 = 0x7fff;
+                OCR1B = reg[5];
             }
-            TCCR1B = div;
-            TCCR1A = COM1B0;
+            TCCR1B |= div;
+            TCCR1A |= _BV(COM1B0);
         }
 
         value = rdivtbl[div]<<8 | mode;
 
     } else if(addr==5) {
-        OCR1A = value;
+        switch(reg[4]&3) {
+        case 1: OCR1A = value; break;
+        case 2: OCR1B = value; break;
+        default: break;
+        }
 
     } else
         return;
