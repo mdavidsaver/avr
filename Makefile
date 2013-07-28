@@ -1,5 +1,5 @@
 
--config.local
+-include config.local
 
 TARGET_PREFIX?=/home/mdavidsaver/avr/usr/bin/avr-
 
