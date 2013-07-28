@@ -1,7 +1,9 @@
 
-TARGET_PREFIX=/home/mdavidsaver/avr/usr/bin/avr-
+-config.local
 
-DUDE=avrdude
+TARGET_PREFIX?=/home/mdavidsaver/avr/usr/bin/avr-
+
+DUDE?=avrdude
 
 all: host-all target-all
 

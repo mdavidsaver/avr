@@ -189,7 +189,7 @@ void mbus_write_holding(uint16_t faddr, uint16_t value)
         TCCR2B = 0;
 
         if(mode!=0) {
-            if(div>sizeof(divtbl))
+            if(div>=sizeof(divtbl))
                 div=0;
             div = divtbl[div];
 
@@ -215,7 +215,7 @@ void mbus_write_holding(uint16_t faddr, uint16_t value)
         TCCR1B = 0;
 
         if(mode!=0) {
-            if(div>sizeof(divtbl))
+            if(div>=sizeof(divtbl))
                 div=0;
             div = divtbl[div];
 
