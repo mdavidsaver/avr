@@ -1,0 +1,69 @@
+
+HOST_PROG = testmbus
+
+testmbus_SRC = testmbus.c mbus.c
+
+TARGET_PROG = toggle echo ioshield
+
+toggle_SRC = toggle.c
+echo_SRC = echo.c server.c mbus.c stubs.c
+ioshield_SRC = ioshield.c server.c mbus.c stubs.c
+
+stubs.c_CFLAGS = -ffunction-sections
+
+HOST_CFLAGS += -g -Wall -std=c99
+
+# Target arduino uno
+TARGET_CPPFLAGS += -DF_CPU=16000000
+TARGET_CFLAGS += -mmcu=atmega328p -Wall -g -Os -std=c99
+TARGET_LDFLAGS += -mmcu=atmega328p -Wl,--gc-sections
+
+DUDE_NAME=m328p
+DUDE_PROG=arduino
+DUDE_BAUD=115200
+DUDE_PORT=/dev/ttyACM0
+
+all: realall
+
+# $1 is prog name
+define prog_rules
+$1_SRC ?= $1.c
+$1_OBJ = $$($1_SRC:%.c=%-$$(MODE).o)
+$1.elf: $$($1_OBJ)
+$1.S: $1.elf
+clean-$1:
+	rm -f $1.elf
+	rm -f $$($1_OBJ)
+clean: clean-$1
+info-$1:
+	@echo "PROG: $1"
+	@echo "file: $1.elf"
+	@echo "$1_SRC = $$($1_SRC)"
+	@echo "$1_OBJ = $$($1_OBJ)"
+info: info-$1
+.PHONY: clean-$1 info-$1
+endef
+
+$(foreach prog,$($(MODE)_PROG),$(eval $(call prog_rules,$(prog))))
+
+%.elf:
+	$(CC) -o $@ $($(MODE)_LDFLAGS) $($1_LDFLAGS) $^ $($(MODE)_LDADD) $($1_LDADD)
+	$(SIZE) $@
+
+%-$(MODE).o: %.c
+	$(CC) -o $@ -c $($(MODE)_CPPFLAGS) $($<_CPPFLAGS) $($(MODE)_CFLAGS) $($<_CFLAGS) $<
+
+%.S:
+	$(DUMP) -d -S $< > $@
+
+%.hex: %.elf
+	$(OBJCOPY) -O ihex $< $@
+
+load-%: %.hex
+	$(DUDE) -c $(DUDE_PROG) -p $(DUDE_NAME) -P $(DUDE_PORT) -b $(DUDE_BAUD) -U flash:w:$*.hex:i
+
+realall: $($(MODE)_PROG:%=%.elf)
+
+.PHONY: all realall clean info
+
+SIZE ?= size
