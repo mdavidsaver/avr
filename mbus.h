@@ -32,7 +32,7 @@
 #endif
 
 #ifndef MAX_BUFFER
-#  define MAX_BUFFER 12
+#  define MAX_BUFFER 20
 #endif
 
 extern volatile uint8_t mbus_in_byte;

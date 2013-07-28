@@ -19,18 +19,21 @@
 
 #include <string.h>
 
+static
 uint16_t bswap16(uint16_t in)
 {
     return (in&0x00ff)<<8 | (in&0xff00)>>8;
 }
 
 #ifndef __AVR__
-#  include <arpa/inet.h>
+#  include <endian.h>
 uint16_t _crc16_update(uint16_t, uint8_t);
 #else
 #  include <util/crc16.h>
-#  define htons(X) ((uint16_t)bswap16(X))
-#  define ntohs(X) ((uint16_t)bswap16(X))
+#  define htobe16(X) ((uint16_t)bswap16(X))
+#  define be16toh(X) ((uint16_t)bswap16(X))
+#  define htole16(X) ((uint16_t)(X))
+#  define le16toh(X) ((uint16_t)(X))
 #endif
 
 #if MAX_BUFFER>=256
@@ -133,37 +136,37 @@ static void mbus_dispatch(void)
 {
     uint16_t crc=calculate_crc(buf.b_b, buf_cnt-2);
 
-    if(ntohs(buf.b_p.mb_s.crc)!=crc) {
+    if(le16toh(buf.b_p.mb_s.crc)!=crc) {
         mbus_exception(4);
 
     } else if(buf.b_p.function==3) {
-        uint16_t count = ntohs(buf.b_p.mb_s.data);
+        uint16_t count = be16toh(buf.b_p.mb_s.data);
         uint8_t cnt = count; // valid counts will always be <256
         // read
         if(count>MAX_BUFFER/2)
             mbus_exception(3);
         else
-            mbus_read_holding(ntohs(buf.b_p.mb_s.addr),
+            mbus_read_holding(be16toh(buf.b_p.mb_s.addr),
                               cnt,
                               buf.b_p.mb_m.data);
 
         {
             size_t i;
             for(i=0; i<cnt; i++)
-                buf.b_p.mb_m.data[i] = htons(buf.b_p.mb_m.data[i]);
+                buf.b_p.mb_m.data[i] = htobe16(buf.b_p.mb_m.data[i]);
         }
 
         if(!(mb_state&STATE_REPLY)) {
             // no exception, send reply
             // node, function are the same.
             buf.b_p.mb_m.count = 2*cnt;
-            buf.b_p.mb_m.data[cnt] = htons(calculate_crc(buf.b_b, 3+2*cnt));
+            buf.b_p.mb_m.data[cnt] = htole16(calculate_crc(buf.b_b, 3+2*cnt));
             buf_cnt = 5+2*cnt;
         }
     } else { // function==6
         // write
-        mbus_write_holding(ntohs(buf.b_p.mb_s.addr),
-                           ntohs(buf.b_p.mb_s.data));
+        mbus_write_holding(be16toh(buf.b_p.mb_s.addr),
+                           be16toh(buf.b_p.mb_s.data));
 
         // reply is to echo back request, or exception signaled by user
     }

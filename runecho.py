@@ -30,13 +30,13 @@ def addcrc(data):
 	crc=crc16(data)
 	H=crc>>8
 	L=crc&0xff;
-	return '%s%s%s'%(data,chr(H),chr(L))
+	return '%s%s%s'%(data,chr(L),chr(H))
 
 td=b'\x01\x03\x12\x34\x00\x04'
 assert crc16(td)==0xbf00
 del td
 
-_H=Struct('!H')
+_H=Struct('<H')
 _M=Struct('!BBHH')
 
 def setreg(S, addr, val):
