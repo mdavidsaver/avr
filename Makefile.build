@@ -11,11 +11,12 @@ ioshield_SRC = ioshield.c server.c mbus.c stubs.c
 
 stubs.c_CFLAGS = -ffunction-sections
 
-HOST_CFLAGS += -g -Wall -std=c99
+# gnu99 or c11 required due to use of anonymous unions.
+HOST_CFLAGS += -g -Wall -std=gnu99
 
 # Target arduino uno
 TARGET_CPPFLAGS += -DF_CPU=16000000
-TARGET_CFLAGS += -mmcu=atmega328p -Wall -g -Os -std=c99
+TARGET_CFLAGS += -mmcu=atmega328p -Wall -g -Os -std=gnu99
 TARGET_LDFLAGS += -mmcu=atmega328p -Wl,--gc-sections
 
 DUDE_NAME=m328p
