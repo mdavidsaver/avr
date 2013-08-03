@@ -104,22 +104,36 @@ void user_init(void)
     reg[6] = reg[8] = 10<<8; // outputs 3,4 only allow divider /1024
 }
 
+struct pinmap {
+    uint8_t iomask;
+    uint8_t valmask;
+};
+static struct pinmap pinb[] = {
+    {_BV(PINB0), 0x20},
+    {_BV(PINB1), 0x10},
+    {_BV(PINB2), 0x02},
+    {_BV(PINB3), 0x01},
+};
+static struct pinmap pind[] = {
+    {_BV(PIND4), 0x80},
+    {_BV(PIND7), 0x40},
+    {_BV(PIND5), 0x08},
+    {_BV(PIND6), 0x04},
+};
+
 void user_tick(void)
 {
+    uint8_t i;
     uint8_t * const breg=(uint8_t*)reg;
     uint8_t IB = PINB, ID = PIND;
     uint8_t state = 0;
 
     // High byte is:
     // PIND4, PIND7, PINB0, PINB1, PIND5, PIND6, PINB2, PINB3
-    state |= (ID&PIND4) ? 0x80 : 0;
-    state |= (ID&PIND7) ? 0x40 : 0;
-    state |= (IB&PINB0) ? 0x20 : 0;
-    state |= (IB&PINB1) ? 0x10 : 0;
-    state |= (ID&PIND5) ? 0x08 : 0;
-    state |= (ID&PIND6) ? 0x04 : 0;
-    state |= (IB&PINB2) ? 0x02 : 0;
-    state |= (IB&PINB3) ? 0x01 : 0;
+    for(i=0; i<4; i++)
+        state |= (IB&pinb[i].iomask) ? pinb[i].valmask : 0;
+    for(i=0; i<4; i++)
+        state |= (ID&pind[i].iomask) ? pind[i].valmask : 0;
 
     breg[3] = state;
 }
