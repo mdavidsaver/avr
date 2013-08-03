@@ -22,6 +22,7 @@
 
 #include <util/delay.h>
 #include <avr/io.h>
+#include <avr/wdt.h>
 
 #include "mbus.h"
 
@@ -40,6 +41,8 @@
  *
  * Rx enable - Arduino Dig 3 (PD3)
  * Tx enable - Arduino Dig 2 (PD2)
+ *
+ * Rev 1 boards have port 1,2 and 3,4 swapped.
  */
 
 /** BNC I/O Shield register map.
@@ -118,7 +121,7 @@ void user_tick(void)
     state |= (IB&PINB2) ? 0x02 : 0;
     state |= (IB&PINB3) ? 0x01 : 0;
 
-    breg[2] = state;
+    breg[3] = state;
 }
 
 void mbus_read_holding(uint16_t addr, uint8_t count, uint16_t * restrict result)
@@ -147,7 +150,8 @@ void mbus_write_holding(uint16_t faddr, uint16_t value)
 
         if(value&1) {
             // reset
-            WDTCSR = WDE; // enable watchdog with shortest timeout
+            cli();
+            wdt_enable(WDTO_30MS);
             while(1) {}; // wait...
         }
 
