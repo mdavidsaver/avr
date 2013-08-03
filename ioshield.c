@@ -26,6 +26,8 @@
 
 #include "mbus.h"
 
+#define NELEMENTS(X) (sizeof(X)/sizeof(*(X)))
+
 /* BNC I/O Shield rev 1 pinout
  * with arduino uno
  *
@@ -130,9 +132,9 @@ void user_tick(void)
 
     // High byte is:
     // PIND4, PIND7, PINB0, PINB1, PIND5, PIND6, PINB2, PINB3
-    for(i=0; i<4; i++)
+    for(i=0; i<NELEMENTS(pinb); i++)
         state |= (IB&pinb[i].iomask) ? pinb[i].valmask : 0;
-    for(i=0; i<4; i++)
+    for(i=0; i<NELEMENTS(pind); i++)
         state |= (ID&pind[i].iomask) ? pind[i].valmask : 0;
 
     breg[3] = state;
@@ -153,113 +155,138 @@ static uint8_t divtbl[] = {0, 1, 2, 2, 2, 3, 3, 4, 5, 5};
 // map clock divider to power of 2
 static uint8_t rdivtbl[] = {0, 1, 4, 6, 8, 10};
 
+static void mbus_write_csr(uint16_t faddr, uint16_t value)
+{
+    value &= 0x0101; //mask out unused bits
+
+    if(value&1) {
+        // reset
+        cli();
+        wdt_enable(WDTO_30MS);
+        while(1) {}; // wait...
+    }
+
+    if(value&0x0100) {
+        PORTD &= ~_BV(PD2); // enable Tx buffers
+    } else {
+        PORTD |= _BV(PD2); // tri-state Tx buffers
+    }
+
+    reg[0] = value;
+}
+
+static void mbus_write_outputs(uint16_t faddr, uint16_t rvalue)
+{
+    uint8_t value=rvalue&0x0F;
+    uint8_t *breg=(uint8_t*)reg;
+
+    uint8_t SB=PORTB, SD=PORTD;
+
+    SB &= ~(_BV(PB2)|_BV(PB3));
+    SD &= ~(_BV(PD5)|_BV(PD6));
+
+#define ACT(MASK, SET, BIT) \
+if(value&MASK) {SET |= _BV(BIT);}
+
+    ACT(0x1, SB, PB3);
+    ACT(0x2, SB, PB2);
+    ACT(0x4, SD, PD6);
+    ACT(0x8, SD, PD5);
+#undef ACT
+
+    PORTB=SB;
+    PORTD=SD;
+
+    breg[2] = value;
+}
+
+static void mbus_write_config_out1(uint16_t faddr, uint16_t value)
+{
+    uint8_t div=value>>8;
+    uint8_t mode=value&0x3;
+
+    // disable counter in preparation to change mode
+    TCCR2A = 0;
+    TCCR2B = 0;
+
+    if(mode!=0) {
+        if(div>=sizeof(divtbl))
+            div=0;
+        div = divtbl[div];
+
+        if(mode==1) { // freq (CTC mode)
+            TCCR2A = _BV(WGM21)|_BV(COM2A0);
+        } else { // PWM (fast)
+            TCCR2A = _BV(WGM21)|_BV(WGM20)|_BV(COM2A0);
+        }
+        TCCR2B = div;
+    }
+
+    value = rdivtbl[div]<<8 | mode;
+
+    reg[2] = value;
+}
+
+static void mbus_write_param_out1(uint16_t faddr, uint16_t value)
+{
+    OCR2A = value;
+}
+
+static void mbus_write_config_out2(uint16_t faddr, uint16_t value)
+{
+    uint8_t div=value>>8;
+    uint8_t mode=value&0x3;
+
+    // disable counter in preparation to change mode
+    TCCR1A = 0;
+    TCCR1B = 0;
+    OCR1A = OCR1B = 0;
+
+    if(mode!=0) {
+        if(div>=sizeof(divtbl))
+            div=0;
+        div = divtbl[div];
+
+        if(mode==1) { // freq (CTC mode)
+            OCR1A = reg[5];
+            TCCR1B = _BV(WGM12);
+        } else { // PWM (phase + freq correct)
+            TCCR1B = _BV(WGM13);
+            ICR1 = 0x7fff;
+            OCR1B = reg[5];
+        }
+        TCCR1B |= div;
+        TCCR1A |= _BV(COM1B0);
+    }
+
+    reg[4] = rdivtbl[div]<<8 | mode;
+}
+
+static void mbus_write_param_out2(uint16_t faddr, uint16_t value)
+{
+    switch(reg[4]&3) {
+    case 1: OCR1A = value; break;
+    case 2: OCR1B = value; break;
+    default: break;
+    }
+}
+
+typedef void (*mbus_write_op_t)(uint16_t,uint16_t);
+
+static mbus_write_op_t mbus_ops[] = {
+    mbus_write_csr,
+    mbus_write_outputs,
+    mbus_write_config_out1,
+    mbus_write_param_out1,
+    mbus_write_config_out2,
+    mbus_write_param_out2,
+};
+
 void mbus_write_holding(uint16_t faddr, uint16_t value)
 {
     uint8_t addr=faddr;
-    if(faddr>=sizeof(reg))
-        mbus_exception(2);
-
-    if(addr==0) { // CSR
-        value &= 0x0101; //mask out unused bits
-
-        if(value&1) {
-            // reset
-            cli();
-            wdt_enable(WDTO_30MS);
-            while(1) {}; // wait...
-        }
-
-        if(value&0x0100) {
-            PORTD &= ~_BV(PD2); // enable Tx buffers
-        } else {
-            PORTD |= _BV(PD2); // tri-state Tx buffers
-        }
-
-    } else if(addr==1) { // set outputs
-        uint8_t SB=PORTB, SD=PORTD;
-        value &= 0x000F;
-        reg[1] &= ~0x000F;
-        value |= reg[1];
-
-        SB &= ~(_BV(PB2)|_BV(PB3));
-        SD &= ~(_BV(PD5)|_BV(PD6));
-
-#define ACT(MASK, SET, BIT) \
-    if(value&MASK) {SET |= _BV(BIT);}
-
-        ACT(0x1, SB, PB3);
-        ACT(0x2, SB, PB2);
-        ACT(0x4, SD, PD6);
-        ACT(0x8, SD, PD5);
-#undef ACT
-
-        PORTB=SB;
-        PORTD=SD;
-
-    } else if(addr==2) { // config out #1 (pin OC2A)
-        uint8_t div=value>>8;
-        uint8_t mode=value&0x3;
-
-        // disable counter in preparation to change mode
-        TCCR2A = 0;
-        TCCR2B = 0;
-
-        if(mode!=0) {
-            if(div>=sizeof(divtbl))
-                div=0;
-            div = divtbl[div];
-
-            if(mode==1) { // freq (CTC mode)
-                TCCR2A = _BV(WGM21)|_BV(COM2A0);
-            } else { // PWM (fast)
-                TCCR2A = _BV(WGM21)|_BV(WGM20)|_BV(COM2A0);
-            }
-            TCCR2B = div;
-        }
-
-        value = rdivtbl[div]<<8 | mode;
-
-    } else if(addr==3) {
-        OCR2A = value;
-
-    } else if(addr==4) { // config out #2 (pin OC1B)
-        uint8_t div=value>>8;
-        uint8_t mode=value&0x3;
-
-        // disable counter in preparation to change mode
-        TCCR1A = 0;
-        TCCR1B = 0;
-        OCR1A = OCR1B = 0;
-
-        if(mode!=0) {
-            if(div>=sizeof(divtbl))
-                div=0;
-            div = divtbl[div];
-
-            if(mode==1) { // freq (CTC mode)
-                OCR1A = reg[5];
-                TCCR1B = _BV(WGM12);
-            } else { // PWM (phase + freq correct)
-                TCCR1B = _BV(WGM13);
-                ICR1 = 0x7fff;
-                OCR1B = reg[5];
-            }
-            TCCR1B |= div;
-            TCCR1A |= _BV(COM1B0);
-        }
-
-        value = rdivtbl[div]<<8 | mode;
-
-    } else if(addr==5) {
-        switch(reg[4]&3) {
-        case 1: OCR1A = value; break;
-        case 2: OCR1B = value; break;
-        default: break;
-        }
-
-    } else
+    if(faddr>=NELEMENTS(mbus_ops))
         return;
 
-    reg[addr] = value;
+    mbus_ops[addr](faddr,value);
 }
-
