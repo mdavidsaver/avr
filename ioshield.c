@@ -84,10 +84,15 @@
  *  0xFFFF - For Output 2
  *  0xFF00 - For Outputs 1, 3, and 4
  *
- * When in Frequency mode, this is a divider.  When in PWM mode this is a phase.
+ *  When in Frequency mode, this is a divider.  When in PWM mode this is a phase.
+ *
+ * 0x000A - Temperature
+ *
+ *  Reading:
+ *   0xFFC0
  */
 
-#define NREG 10
+#define NREG 11
 
 static uint16_t reg[NREG];
 
@@ -103,6 +108,8 @@ void user_init(void)
 
     reg[0] = MCUSR; // save reset source
 
+    reg[6] = reg[8] = 10<<8; // outputs 3,4 only allow divider /1024
+
     // Enable Tx/Rx control drivers
     PORTD = _BV(PD2)|_BV(PD3); // enable internal pull-ups
     DDRD = _BV(DDD2)|_BV(DDD3); // Set to outputs (level high)
@@ -114,8 +121,10 @@ void user_init(void)
     DDRB |= _BV(DDB2)|_BV(DDB3);
     DDRD |= _BV(DDD5)|_BV(DDD6);
 
-    reg[6] = reg[8] = 10<<8; // outputs 3,4 only allow divider /1024
-
+    // Ref is internal 1.1V. left shift.  Mux select 8 (temperature)
+    ADMUX = _BV(REFS1)|_BV(REFS0) | _BV(ADLAR) | _BV(MUX3);
+    // Enable and start.  Clock /128
+    ADCSRA = _BV(ADEN)|_BV(ADSC)|_BV(ADPS2)|_BV(ADPS1)|_BV(ADPS0);
 
     eeprom_read_block(initreg, eereg, sizeof(initreg));
     isum = calculate_crc((uint8_t*)initreg, sizeof(reg));
@@ -161,6 +170,11 @@ void user_tick(void)
         state |= (ID&pind[i].iomask) ? pind[i].valmask : 0;
 
     breg[3] = state;
+
+    if(ADCSRA&_BV(ADIF)) {
+        reg[10] = ADC;
+        ADCSRA |= _BV(ADSC)|_BV(ADIF); // ack and restart
+    }
 }
 
 void mbus_read_holding(uint16_t addr, uint8_t count, uint16_t * restrict result)
