@@ -78,4 +78,6 @@ void mbus_read_holding(uint16_t addr, uint8_t count, uint16_t * restrict result)
 
 void mbus_write_holding(uint16_t addr, uint16_t value);
 
+uint16_t calculate_crc(const uint8_t* d, uint8_t c);
+
 #endif // MBUS_H

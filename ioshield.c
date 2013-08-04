@@ -23,6 +23,7 @@
 #include <util/delay.h>
 #include <avr/io.h>
 #include <avr/wdt.h>
+#include <avr/eeprom.h>
 
 #include "mbus.h"
 
@@ -86,10 +87,20 @@
  * When in Frequency mode, this is a divider.  When in PWM mode this is a phase.
  */
 
-uint16_t reg[10];
+#define NREG 10
+
+static uint16_t reg[NREG];
+
+/* each block can hold a copy of registers and a checksum */
+static uint16_t eereg[NREG+1] EEMEM;
+
+/* sequence to restore registers from eeprom */
+static uint8_t eereg_restore_seq[] = {3,5,2,4,1,0};
 
 void user_init(void)
 {
+    uint16_t initreg[NREG+1], isum;
+
     reg[0] = MCUSR; // save reset source
 
     // Enable Tx/Rx control drivers
@@ -104,6 +115,18 @@ void user_init(void)
     DDRD |= _BV(DDD5)|_BV(DDD6);
 
     reg[6] = reg[8] = 10<<8; // outputs 3,4 only allow divider /1024
+
+
+    eeprom_read_block(initreg, eereg, sizeof(initreg));
+    isum = calculate_crc((uint8_t*)initreg, sizeof(reg));
+    if(isum==initreg[NREG]) {
+        uint8_t i;
+
+        for(i=1; i<NELEMENTS(eereg_restore_seq); i++) {
+            uint8_t reg = eereg_restore_seq[i];
+            mbus_write_holding(reg, initreg[reg]);
+        }
+    }
 }
 
 struct pinmap {
@@ -157,7 +180,7 @@ static uint8_t rdivtbl[] = {0, 1, 4, 6, 8, 10};
 
 static void mbus_write_csr(uint16_t faddr, uint16_t value)
 {
-    value &= 0x0101; //mask out unused bits
+    value &= 0x0301; //mask out unused bits
 
     if(value&1) {
         // reset
@@ -172,7 +195,18 @@ static void mbus_write_csr(uint16_t faddr, uint16_t value)
         PORTD |= _BV(PD2); // tri-state Tx buffers
     }
 
-    reg[0] = value;
+    reg[0] = value&0x0100; // only write those which are safe to save
+
+    if(value&0x0200) {
+        uint16_t savereg[NREG+1];
+        /* write eeprom */
+
+        ATOMIC_BLOCK(ATOMIC_RESTORESTATE) {
+            memcpy(savereg, reg, sizeof(reg));
+        }
+        savereg[NREG] = calculate_crc((uint8_t*)savereg, sizeof(reg));
+        eeprom_write_block(savereg, eereg, sizeof(savereg));
+    }
 }
 
 static void mbus_write_outputs(uint16_t faddr, uint16_t rvalue)

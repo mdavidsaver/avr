@@ -100,7 +100,6 @@ void mbus_rx_clear(void)
     buf_pos = 0;
 }
 
-static
 uint16_t calculate_crc(const uint8_t* d, uint8_t c)
 {
     uint16_t r=0xffff;
