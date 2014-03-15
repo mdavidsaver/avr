@@ -1,7 +1,7 @@
 
 -include config.local
 
-TARGET_PREFIX?=/home/mdavidsaver/avr/usr/bin/avr-
+TARGET_PREFIX?=avr-
 
 DUDE?=avrdude
 
