@@ -3,11 +3,12 @@ HOST_PROG = testmbus
 
 testmbus_SRC = testmbus.c mbus.c
 
-TARGET_PROG = toggle echo ioshield
+TARGET_PROG = toggle echo ioshield vmeter
 
 toggle_SRC = toggle.c
 echo_SRC = echo.c server.c mbus.c stubs.c
 ioshield_SRC = ioshield.c server.c mbus.c stubs.c
+vmeter_SRC = vmeter.c
 
 stubs.c_CFLAGS = -ffunction-sections
 
