@@ -19,7 +19,7 @@
 
 #include <string.h>
 
-static
+static inline
 uint16_t bswap16(uint16_t in)
 {
     return (in&0x00ff)<<8 | (in&0xff00)>>8;

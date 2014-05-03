@@ -26,7 +26,7 @@
 
 static size_t npass, nfail, nplan;
 
-static void testDiag(const char* fmt, ...)
+void testDiag(const char* fmt, ...)
 {
     va_list args;
     va_start(args, fmt);
@@ -36,7 +36,7 @@ static void testDiag(const char* fmt, ...)
     va_end(args);
 }
 
-static void testPassV(const char* fmt, va_list args)
+void testPassV(const char* fmt, va_list args)
 {
     npass++;
     printf("ok - ");
@@ -44,7 +44,7 @@ static void testPassV(const char* fmt, va_list args)
     printf("\n");
 }
 
-static void testFailV(const char* fmt, va_list args)
+void testFailV(const char* fmt, va_list args)
 {
     nfail++;
     printf("fail - ");
@@ -52,7 +52,7 @@ static void testFailV(const char* fmt, va_list args)
     printf("\n");
 }
 
-static void testPass(const char* fmt, ...)
+void testPass(const char* fmt, ...)
 {
     va_list args;
     va_start(args, fmt);
@@ -60,7 +60,7 @@ static void testPass(const char* fmt, ...)
     va_end(args);
 }
 
-static void testFail(const char* fmt, ...)
+void testFail(const char* fmt, ...)
 {
     va_list args;
     va_start(args, fmt);
@@ -68,7 +68,7 @@ static void testFail(const char* fmt, ...)
     va_end(args);
 }
 
-static int testOk(int v, const char* fmt, ...)
+int testOk(int v, const char* fmt, ...)
 {
     va_list args;
     va_start(args, fmt);
